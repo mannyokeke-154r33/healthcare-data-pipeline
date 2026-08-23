@@ -1,12 +1,12 @@
 # Healthcare Data Pipeline
 
-A healthcare data engineering project built with Python, Pandas, PostgreSQL, and SQL.
+A healthcare data engineering project built with Python, Pandas, PostgreSQL, SQL, and automated testing.
 
 ## Overview
 
-I built this project to explore how raw healthcare data can be cleaned, validated, transformed, and prepared for reliable storage in a relational database.
+I built this project to explore how raw healthcare data can be cleaned, validated, transformed, and loaded into a relational database through a repeatable ETL workflow.
 
-The pipeline is designed around a repeatable ETL workflow so that data-processing rules can be applied consistently instead of relying on manual cleanup.
+The pipeline applies the same data-quality rules each time it runs and uses PostgreSQL constraints as an additional layer of protection after records reach the database.
 
 ## Pipeline
 
@@ -31,29 +31,38 @@ Load into PostgreSQL
 
 ## Key Features
 
-- ETL workflow for healthcare records
+- ETL workflow for healthcare visit records
 - Data cleaning and standardization with Pandas
 - Required-field validation
-- Duplicate record handling
+- Duplicate patient handling
 - Age and value validation
-- PostgreSQL schema with database constraints
-- SQL queries for basic analysis
-- Automated tests for transformation logic
+- Direct PostgreSQL loading with Psycopg
+- Upserts to make repeated loads predictable
+- PostgreSQL constraints for database-level validation
+- SQL analysis queries
+- Pytest test suite with boundary and invalid-input cases
+- GitHub Actions continuous integration
+- Environment-based database configuration
 - Synthetic sample data for safe demonstration
 
 ## Tech Stack
 
-- Python
+- Python 3.11+
 - Pandas
 - PostgreSQL
+- Psycopg 3
 - SQL
 - Pytest
+- GitHub Actions
 - Git and GitHub
 
 ## Project Structure
 
 ```text
 healthcare-data-pipeline/
+├── .github/
+│   └── workflows/
+│       └── tests.yml
 ├── data/
 │   └── sample_healthcare_data.csv
 ├── src/
@@ -63,78 +72,124 @@ healthcare-data-pipeline/
 │   └── analysis_queries.sql
 ├── tests/
 │   └── test_pipeline.py
-├── requirements.txt
+├── .env.example
 ├── .gitignore
+├── pyproject.toml
+├── requirements.txt
 └── README.md
 ```
 
 ## How It Works
 
-The pipeline follows three main stages:
-
-1. **Extract** records from a CSV source.
-2. **Transform** the data by validating required fields, standardizing values, removing duplicate patient IDs, and filtering invalid records.
-3. **Load** the cleaned data into PostgreSQL so it can be stored and queried consistently.
+1. **Extract:** Read visit records from a CSV source.
+2. **Transform:** Validate required fields, standardize text, remove duplicate patient IDs, convert ages to numeric values, and reject invalid ages.
+3. **Load:** Connect to PostgreSQL and upsert cleaned records into `healthcare_visits`.
+4. **Analyze:** Use SQL queries to summarize the resulting dataset.
 
 ## Data Validation
 
-The transformation layer checks that required columns are present and removes records that cannot meet the expected data rules.
+The transformation layer checks that required columns are present and filters records that do not meet expected rules.
 
-For example, age values must fall between 0 and 120, required fields cannot be missing, and duplicate patient IDs are removed before the processed dataset is produced.
+Age values must fall between 0 and 120, required values cannot be missing, patient IDs cannot be blank, and duplicate patient IDs are reduced to one record before loading.
 
-The PostgreSQL schema adds another layer of protection by enforcing its own constraints after the data reaches the database.
+The PostgreSQL schema independently enforces required fields and the valid age range.
 
-## Running the Project
+## Setup
 
-### 1. Install dependencies
+### 1. Create a virtual environment
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate
 ```
 
-### 2. Run the pipeline
+On Windows:
+
+```text
+.venv\Scripts\activate
+```
+
+### 2. Install the project
+
+```bash
+pip install -e ".[test]"
+```
+
+### 3. Create the PostgreSQL database
+
+```bash
+createdb healthcare_pipeline
+psql -d healthcare_pipeline -f sql/schema.sql
+```
+
+### 4. Configure the database connection
+
+Use `.env.example` as a reference and set `DATABASE_URL` in your local environment. Do not commit a real password.
+
+macOS/Linux example:
+
+```bash
+export DATABASE_URL="postgresql://postgres:your_password@localhost:5432/healthcare_pipeline"
+```
+
+### 5. Run the pipeline
 
 ```bash
 python src/pipeline.py
 ```
 
-The processed dataset is written to:
+Example output:
 
 ```text
-data/processed_healthcare_data.csv
+Records extracted: 8
+Records loaded to PostgreSQL: 8
 ```
 
-### 3. Run the tests
+### 6. Run the tests
 
 ```bash
-pytest
+pytest -q
 ```
 
-### 4. Prepare PostgreSQL
+GitHub Actions also runs the test suite automatically on pushes and pull requests to `main`.
 
-Create a PostgreSQL database and run:
+## SQL Analysis
+
+After loading the data, run the included queries with:
 
 ```bash
-psql -d healthcare_pipeline -f sql/schema.sql
+psql -d healthcare_pipeline -f sql/analysis_queries.sql
 ```
 
-The queries in `sql/analysis_queries.sql` can then be used as starting points for exploring the processed data.
+The examples include total record counts, visits grouped by department, and average age grouped by visit type.
 
 ## Why I Built It
 
-I wanted to build something that connected Python data processing with relational database design rather than treating them as separate skills.
+I wanted to connect Python data processing with relational database design rather than treating them as separate skills.
 
-The project gave me a practical way to think about what should happen to data before it enters a database, which rules belong in the transformation layer, and which rules should also be enforced by the database itself.
+Building the pipeline made me think about where data-quality rules should live. Some rules are useful during transformation because bad records can be handled before loading, while database constraints provide another safeguard once the data is stored.
 
-It also reinforced an important part of data engineering: a pipeline should be repeatable. The same validation and transformation rules should be applied consistently every time new data moves through the system.
+I also wanted the pipeline to be safe to run repeatedly. PostgreSQL upserts allow existing patient records to be updated rather than causing duplicate-key failures during another run.
+
+## Testing
+
+The test suite covers transformation behavior including:
+
+- Duplicate patient IDs
+- Missing required values
+- Missing required columns
+- Invalid ages
+- Boundary ages of 0 and 120
+- Non-numeric ages
+- Text standardization
+- Empty datasets
 
 ## Next Steps
 
-- Add direct PostgreSQL loading from Python
-- Add detailed pipeline logging
 - Track rejected records and rejection reasons
+- Add structured pipeline logging
 - Add automated data-quality reports
+- Add integration tests against PostgreSQL
 - Add pipeline performance metrics
 - Containerize the application with Docker
-- Add GitHub Actions for automated testing
 - Build a simple analytics dashboard
