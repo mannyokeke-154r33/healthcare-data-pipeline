@@ -1,0 +1,9 @@
+patient_id,age,department,visit_type
+P001,34,cardiology,outpatient
+P002,57,emergency,emergency
+P003,42,neurology,inpatient
+P004,29,primary care,outpatient
+P005,68,cardiology,inpatient
+P006,51,orthopedics,outpatient
+P007,45,emergency,emergency
+P008,36,primary care,outpatient
